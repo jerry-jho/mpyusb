@@ -41,7 +41,7 @@ def GetConfigurationDescriptor(device, index):
 
 def GetHidReport(device, index, length):
     full_buf = bytearray(length)
-    CtrlTransfer(device, DESC_HID_REPORT_DESCRIPTOR, index, full_buf, 1)
+    CtrlTransfer(device, DESC_HID_TYPE_REPORT, index, full_buf, 1)
     return full_buf
 
 def InterfaceClassStr(c):

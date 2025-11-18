@@ -1,5 +1,8 @@
 def print_bytearray(arr):
     for b in arr:
-        print(f"0x{int(b):02X}", end=" ")
+        ib = int(b)
+        if ib < 0:
+            ib = ib + 256
+        print(f"0x{ib:02X}", end=" ")
     print()
     
