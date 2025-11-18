@@ -22,39 +22,29 @@ while not device_found:
         desc = usbhid.GetConfigurationDescriptor(device, 0)
         interfaces = usbhid.GetHIDInterfaces(desc)
         print(interfaces)
+        for hid_interface in interfaces:
+            hid_desc = usbhid.GetHidReport(device, hid_interface.Index, hid_interface.HIDReportSize)
+            print(f"HID Report of Interface {hid_interface.Index}")
+            utils.print_bytearray(hid_desc)
         if device.is_kernel_driver_active(0):
             device.detach_kernel_driver(0)
         device.set_configuration()
-        hid_interface = usbhid.FilterInterface(interfaces)
-        if hid_interface.DeviceType == usbhid.EnumDeviceType.BootKeyboard:
-            rbuf = array.array("b", [0x00] * 0x08)
-            print("Press Keyboard, ESC to quit")
-            while(1):
-                count = 0
-                try:
-                    count = device.read(hid_interface.EndpointAddresses[0], rbuf, timeout=10)
-                except usb.core.USBTimeoutError:
-                    continue
-                if count > 0:
-                    utils.print_bytearray(rbuf)
-                    if rbuf[2] == 0x29:
-                        break
-        elif hid_interface.DeviceType == usbhid.EnumDeviceType.BootMouse:
-            rbuf = array.array("b", [0x00] * 0x08)
-            print("Press Mouse, Right Click to quit")
-            while(1):
-                count = 0
-                try:
-                    count = device.read(hid_interface.EndpointAddresses[0], rbuf, timeout=10)
-                except usb.core.USBTimeoutError:
-                    continue
-                if count > 0:
-                    utils.print_bytearray(rbuf)
-                    if rbuf[0] == 0x02:
-                        break
-        else:
-            hid_desc = usbhid.GetHidReport(device, hid_interface.Index, hid_interface.HIDReportSize)
-            utils.print_bytearray(hid_desc)
+        bloop = True
+        prev_rbuf_hive = {}
+        while(bloop):
+            for hid_interface in interfaces:
+                for i in range(len(hid_interface.EndpointAddresses)):
+                    rbuf = usbhid.Read(device, hid_interface.EndpointAddresses[i], hid_interface.EndpointSizes[i])
+                    if not utils.is_all_zero(rbuf):
+                        prev_rbuf = prev_rbuf_hive.get(f"{hid_interface.Index}:{i}", None)
+                        if not utils.is_equal(prev_rbuf, rbuf):
+                            print(f"Device Type {hid_interface.DeviceType} Interface {hid_interface.Index} Endpoint {i} ", end="")
+                            utils.print_bytearray(rbuf)
+                        prev_rbuf_hive[f"{hid_interface.Index}:{i}"] = rbuf
+                        if hid_interface.DeviceType == usbhid.EnumDeviceType.BootKeyboard and rbuf[2] == 0x29:
+                            bloop = False
+                        if hid_interface.DeviceType == usbhid.EnumDeviceType.BootMouse and rbuf[0] == 0x02:
+                            bloop = False
         device_found = True
     
     

@@ -1,6 +1,8 @@
 import struct
 from micropython import const
 import utils
+import array
+import usb
 
 _DIR_OUT = const(0x00)
 _DIR_IN = const(0x80)
@@ -77,8 +79,13 @@ class HIDInterface:
         self.DeviceType = None
         self.HIDReportSize = None
         self.EndpointAddresses = []
+        self.EndpointSizes = []
     def __repr__(self):
-        return f"HIDInterface(Index={self.Index} DeviceType={self.DeviceType} HIDReportSize={self.HIDReportSize} EndpointAddresses={self.EndpointAddresses})"
+        return f"HIDInterface(Index={self.Index} " + \
+               f"DeviceType={self.DeviceType} " + \
+               f"HIDReportSize={self.HIDReportSize} " + \
+               f"EndpointAddresses={self.EndpointAddresses} " + \
+               f"EndpointSizes={self.EndpointSizes})"
 
 def GetHIDInterfaces(desc, print_raw=False, print_info=False):
     if print_raw:
@@ -124,10 +131,15 @@ def GetHIDInterfaces(desc, print_raw=False, print_info=False):
                 print(f"    Attr={utils.HIDTypeStr(bHIDType)}")
         elif bDescriptorType == DESC_ENDPOINT:
             bEndpointAddress = int(desc[i + 2])
+            bEndpointSizeLow = int(desc[i + 4])
+            bEndpointSizeHigh = int(desc[i + 5])
             current_interface.EndpointAddresses.append(bEndpointAddress)
+            bEndpointSize = bEndpointSizeHigh*256+bEndpointSizeLow
+            current_interface.EndpointSizes.append(bEndpointSize)
             if print_info:
                 print(f"  [ENDPOINT]")
                 print(f"    bEndpointAddress=0x{bEndpointAddress:02X}")
+                print(f"    bEndpointSize=0x{bEndpointSize:04X}")
         i += bLength
     if current_interface is not None:
         rtn.append(current_interface)
@@ -142,3 +154,13 @@ def FilterInterface(hid_interfaces):
         if hif.DeviceType != EnumDeviceType.Other:
             return hif
     return hid_interfaces[0]
+
+def Read(device, address, size, timeout=10):
+    rbuf = array.array("b", [0x00] * size)
+    count = 0
+    try:
+        count = device.read(address, rbuf, timeout=timeout)
+    except usb.core.USBTimeoutError:
+        return None
+    if count > 0:
+        return rbuf
